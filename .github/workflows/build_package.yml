@@ -3,6 +3,7 @@ name: Build & package
 on:
   push:
     branches: [ "main", "release-candidate" ]
+  workflow_dispatch:
 
 permissions:
   contents: read
