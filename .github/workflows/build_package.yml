@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
     - uses: actions/checkout@v3
@@ -30,7 +30,11 @@ jobs:
       working-directory: .
       run: "./build_package.bat"
       shell: cmd
-
+      
+    - name: Verify DLL was built
+      shell: cmd
+      run: if not exist build\backend\bin\olympus.dll (echo olympus.dll missing && exit /b 1)
+      
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v4.6.1
       with:
