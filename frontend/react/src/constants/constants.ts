@@ -35,6 +35,12 @@ export const DEBOUNCE_MILLISECONDS = 200;
 
 export const TRAIL_LENGTH = 10;
 
+/* Feature flag for Olympus's built-in troop embark/disembark system (EMBARK/DISEMBARK context actions, the on-unit
+   capacity text and the boarded-units list in the unit panel). It is hidden because it is being replaced by a different
+   load/unload system. Set to true to bring the built-in UI back. The matching Lua flag is Olympus.enableBuiltInTroopMenu
+   in scripts/lua/backend/OlympusCommand.lua (F10 troop menu for human pilots). */
+export const ENABLE_BUILTIN_EMBARK = false;
+
 export const UNITS_URI = "units";
 export const WEAPONS_URI = "weapons";
 export const LOGS_URI = "logs";

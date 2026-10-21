@@ -16,6 +16,7 @@ import {
     maxSpeedValues,
     reactionsToThreat,
     speedIncrements,
+    ENABLE_BUILTIN_EMBARK,
 } from "../../constants/constants";
 import { OlToggle } from "../components/oltoggle";
 import { OlCoalitionToggle } from "../components/olcoalitiontoggle";
@@ -3548,7 +3549,7 @@ export function UnitControlMenu(props: { open: boolean; onClose: () => void }) {
                                                 </div>
                                             </>
                                         )}
-                                        {(selectedUnits[0].getCanTransportUnits() || boardedUnitsCount > 0) && (
+                                        {ENABLE_BUILTIN_EMBARK && (selectedUnits[0].getCanTransportUnits() || boardedUnitsCount > 0) && (
                                             <div
                                                 className={`
                                                   flex flex-col gap-2 border-b-2

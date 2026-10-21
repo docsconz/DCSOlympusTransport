@@ -46,6 +46,11 @@ Olympus.fireCounter = 1
 Olympus.markers = {}
 Olympus.F10ItemsByID = {}		-- Table to keep references to the F10 menu items. Each item is a subtable with the groupID and reference to F10 menu item
 
+-- Feature flag for the built-in troop embark/disembark F10 menu ("TROOPS OPTIONS") for human-controlled aircraft.
+-- Hidden because it is being replaced by a different load/unload system. Set to true to bring it back.
+-- The matching frontend flag is ENABLE_BUILTIN_EMBARK in frontend/react/src/constants/constants.ts.
+Olympus.enableBuiltInTroopMenu = false
+
 -- Constants
 Olympus.scanRadius = 100
 Olympus.dumpChunkSize = 3500 
@@ -1451,7 +1456,7 @@ function Olympus.setUnitsData(arg, time)
 					-- If the unit is alive, check if we need to add the F10 options. If it is dead, check if we need to remove them
 					if table["isAlive"] then
 						-- If this is a human controlled unit, append the F10 Radio options
-						if (Olympus.F10ItemsByID[ID] == nil and unit:getPlayerName() ~= nil and (unit:getDesc().category == Unit.Category.AIRPLANE or unit:getDesc().category == Unit.Category.HELICOPTER)) then
+						if (Olympus.enableBuiltInTroopMenu and Olympus.F10ItemsByID[ID] == nil and unit:getPlayerName() ~= nil and (unit:getDesc().category == Unit.Category.AIRPLANE or unit:getDesc().category == Unit.Category.HELICOPTER)) then
 							Olympus.addF10Options(ID)
 						end
 					else

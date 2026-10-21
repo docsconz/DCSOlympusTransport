@@ -49,6 +49,7 @@ import {
     SPOTS_EDIT_ZOOM_TRANSITION,
     CLUSTERING_ZOOM_TRANSITION,
     SpawnSubState,
+    ENABLE_BUILTIN_EMBARK,
 } from "../constants/constants";
 import { DataExtractor } from "../server/dataextractor";
 import { Weapon } from "../weapon/weapon";
@@ -1233,7 +1234,7 @@ export abstract class Unit extends CustomMarker {
         contextActionSet.addContextAction(this, ContextActions.ATTACK);
         contextActionSet.addContextAction(this, ContextActions.FIRE_LASER);
         contextActionSet.addContextAction(this, ContextActions.FIRE_INFRARED);
-        contextActionSet.addContextAction(this, ContextActions.EMBARK);
+        if (ENABLE_BUILTIN_EMBARK) contextActionSet.addContextAction(this, ContextActions.EMBARK);
 
         contextActionSet.addDefaultContextAction(this, ContextActions.MOVE);
     }
@@ -2054,7 +2055,7 @@ export abstract class Unit extends CustomMarker {
 
             /* Set capacity */
             if (element.querySelector(".unit-capacity")) {
-                if (this.#canTransportUnits) {
+                if (ENABLE_BUILTIN_EMBARK && this.#canTransportUnits) {
                     (element.querySelector(".unit-capacity") as HTMLElement).innerText = `${this.#onBoardUnitsIDs.length}/${this.#maximumTransportableUnits}`;
                 }
             }
@@ -2718,7 +2719,7 @@ export abstract class AirUnit extends Unit {
             contextActionSet.addContextAction(this, ContextActions.CARPET_BOMB);
         }
 
-        if (this.getCanTransportUnits() && this.getOnBoardUnitsIDs().length > 0) {
+        if (ENABLE_BUILTIN_EMBARK && this.getCanTransportUnits() && this.getOnBoardUnitsIDs().length > 0) {
             /* Context actions related to transport */
             contextActionSet.addContextAction(this, ContextActions.DISEMBARK);
         }
