@@ -1,0 +1,7 @@
+# Owner corrections to the generated transport allowlist.
+# One entry per line: "yes <DCS type name>" or "no <DCS type name>". Lines starting with # are ignored.
+# After editing, run: python3 scripts/lua/missionscripts/simpleTransport_generate_lists.py
+#
+# Examples (remove the # to use):
+# yes Mi-24P
+# no Trolley bus
