@@ -79,7 +79,7 @@ simpleTransport.unitWeights = {
 -- BEGIN GENERATED (do not edit by hand; regenerate with scripts/lua/missionscripts/simpleTransport_generate_lists.py) --
 -- Source: databases/units/*.json. Overrides file: simpleTransport_overrides.txt.
 -- While true, the lists below are the generator's best guesses and still need the owner's confirmation.
-simpleTransport.allowlistsProvisional = true
+simpleTransport.allowlistsProvisional = false
 
 -- Groups made only of these unit types can be loaded (infantry plus the 2B11 mortar).
 simpleTransport.passengerTypes = {
@@ -161,6 +161,7 @@ simpleTransport.transportTypes = {
     ["MTLB"] = "ground",
     ["Marder"] = "ground",
     ["MaxxPro_MRAP"] = "ground",
+    ["Mi-24P"] = "air",
     ["Mi-26"] = "air",
     ["Mi-8MT"] = "air",
     ["SH-3W"] = "air",

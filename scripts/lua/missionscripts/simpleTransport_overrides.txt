@@ -2,6 +2,8 @@
 # One entry per line: "yes <DCS type name>" or "no <DCS type name>". Lines starting with # are ignored.
 # After editing, run: python3 scripts/lua/missionscripts/simpleTransport_generate_lists.py
 #
-# Examples (remove the # to use):
-# yes Mi-24P
+# Example (remove the # to use):
 # no Trolley bus
+
+# Owner review, 2026-11-03: Mi-24P is a transport (Olympus does not flag it, so this forces it on).
+yes Mi-24P

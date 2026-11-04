@@ -658,7 +658,8 @@ do
     check("mortar is a passenger", p["2B11 mortar"] == true)
     check("infantry is a passenger", p["Soldier AK"] == true)
     check("vehicles are not passengers", p["BMP-2"] == nil)
-    check("allowlists are marked provisional", simpleTransport.allowlistsProvisional == true)
+    check("allowlists are marked confirmed", simpleTransport.allowlistsProvisional == false)
+    check("Mi-24P override applied", t["Mi-24P"] == "air")
 end
 
 do
