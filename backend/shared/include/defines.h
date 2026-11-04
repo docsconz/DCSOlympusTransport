@@ -28,6 +28,7 @@
 
 #define MIST_SCRIPT "..\\Scripts\\mist.lua"
 #define OLYMPUS_COMMAND_SCRIPT "..\\Scripts\\OlympusCommand.lua"
+#define OLYMPUS_TRANSPORT_SCRIPT "..\\Scripts\\OlympusTransport.lua"
 #define UNIT_PAYLOADS_SCRIPT "..\\Scripts\\unitPayloads.lua"
 #define TEMPLATES_SCRIPT "..\\Scripts\\templates.lua"
 #define MODS_SCRIPT "..\\Scripts\\mods.lua"

@@ -41,6 +41,7 @@ void registerLuaFunctions(lua_State* L)
 
     executeLuaScript(L, instancePath + MIST_SCRIPT);
     executeLuaScript(L, instancePath + OLYMPUS_COMMAND_SCRIPT);
+    executeLuaScript(L, instancePath + OLYMPUS_TRANSPORT_SCRIPT);
     executeLuaScript(L, instancePath + UNIT_PAYLOADS_SCRIPT);
     executeLuaScript(L, instancePath + TEMPLATES_SCRIPT);
     executeLuaScript(L, instancePath + MODS_SCRIPT);
