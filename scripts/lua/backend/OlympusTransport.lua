@@ -154,34 +154,40 @@ function Olympus.transportUnload(transportID, requestHash)
 	end
 end
 
--- DIAGNOSTIC (temporary, to be removed): finds out whether this Lua environment can reach the mission's simpleTransport
--- script. Runs a few times after the mission starts and writes "TRANSPORT-DIAG" lines to the DCS log. Changes nothing.
-function Olympus.transportDiagnostic(state, time)
-	local function say(text)
-		Olympus.log:info("TRANSPORT-DIAG " .. tostring(text))
-	end
-	local function typeOfGlobal(name)
-		return type(rawget(_G, name))
-	end
+-- DIAGNOSTIC v2 (temporary, to be removed): finds out whether this Lua environment can reach the mission's simpleTransport
+-- script. Writes "TRANSPORT-DIAG" lines to the DCS log when this file loads and a few times after the mission starts.
+-- Changes nothing. Compares rawget with ordinary global access, because the bridge uses rawget and the environment may
+-- provide its globals through a metatable.
+local function diagSay(text)
+	Olympus.log:info("TRANSPORT-DIAG " .. tostring(text))
+end
 
+-- Ordinary (non-raw) read of a global, protected so that it can never raise an error
+local function diagRead(name)
+	local ok, value = pcall(function() return _G[name] end)
+	if ok then
+		return value
+	end
+	return nil
+end
+
+function Olympus.transportDiagnostic(state, time)
 	state.runs = state.runs + 1
-	say("--- run " .. state.runs .. " at mission time " .. tostring(timer.getTime()))
+	diagSay("--- run " .. state.runs)
 
 	for _, name in ipairs({ "simpleTransport", "net", "trigger", "env", "timer", "world", "coalition", "mist", "Group", "Unit" }) do
-		say("global " .. name .. " = " .. typeOfGlobal(name))
+		diagSay("global " .. name .. ": rawget = " .. type(rawget(_G, name)) .. ", ordinary read = " .. type(diagRead(name)))
 	end
 
-	-- Anything in this environment whose name looks related
-	local related = {}
-	for key, _ in pairs(_G) do
-		if type(key) == "string" and (string.find(string.lower(key), "transport") or string.find(string.lower(key), "simple")) then
-			table.insert(related, key)
-		end
-	end
-	say("globals with 'transport' or 'simple' in the name: " .. (#related > 0 and table.concat(related, ", ") or "none"))
+	local meta = getmetatable(_G)
+	diagSay("metatable on _G: " .. type(meta) .. (type(meta) == "table" and (", __index = " .. type(meta.__index)) or ""))
 
-	-- Can this environment run code in other Lua states?
-	local net = rawget(_G, "net")
+	local script = diagRead("simpleTransport")
+	if type(script) == "table" then
+		diagSay("simpleTransport via ordinary read: apiVersion = " .. tostring(script.apiVersion) .. ", load = " .. type(script.load))
+	end
+
+	local net = diagRead("net")
 	if type(net) == "table" and type(net.dostring_in) == "function" then
 		for _, stateName in ipairs({ "mission", "server" }) do
 			local code = "return tostring(type(simpleTransport)) .. ' api=' .. tostring(simpleTransport and simpleTransport.apiVersion)"
@@ -190,26 +196,21 @@ function Olympus.transportDiagnostic(state, time)
 			for i = 1, #results do
 				parts[i] = tostring(results[i])
 			end
-			say("net.dostring_in(" .. stateName .. ") returned: " .. table.concat(parts, " | "))
+			diagSay("net.dostring_in(" .. stateName .. ") returned: " .. table.concat(parts, " | "))
 		end
 	else
-		say("net.dostring_in is not available here")
-	end
-
-	-- Can this environment run a script inside the mission? (only checks that the call exists, does not call it)
-	local trig = rawget(_G, "trigger")
-	if type(trig) == "table" and type(trig.action) == "table" then
-		say("trigger.action.doScript = " .. type(trig.action.doScript))
+		diagSay("net.dostring_in is not available here")
 	end
 
 	if state.runs >= 8 then
-		say("--- done")
+		diagSay("--- done")
 		return nil
 	end
 	return time + 20
 end
 
-local diagnosticTimer = rawget(_G, "timer")
-if type(diagnosticTimer) == "table" and diagnosticTimer.scheduleFunction ~= nil then
-	diagnosticTimer.scheduleFunction(Olympus.transportDiagnostic, { runs = 0 }, diagnosticTimer.getTime() + 5)
+diagSay("diagnostic v2 loaded; ordinary read of timer = " .. type(diagRead("timer")) .. ", rawget = " .. type(rawget(_G, "timer")))
+local diagTimer = diagRead("timer")
+if type(diagTimer) == "table" and diagTimer.scheduleFunction ~= nil then
+	diagTimer.scheduleFunction(Olympus.transportDiagnostic, { runs = 0 }, diagTimer.getTime() + 5)
 end

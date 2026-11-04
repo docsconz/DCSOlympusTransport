@@ -290,6 +290,7 @@ do
 end
 
 do
+	for _, name in ipairs({ "timer", "net", "env", "trigger", "world", "coalition", "mist", "Group", "Unit" }) do undefinedReads[name] = nil end -- temporary diagnostic reads these
 	undefinedReads["simpleTransport"] = nil   -- the bridge reads it with rawget, so this should never be recorded anyway
 	local names = {}
 	for k in pairs(undefinedReads) do table.insert(names, k) end
