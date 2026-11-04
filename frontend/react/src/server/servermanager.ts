@@ -683,6 +683,20 @@ export class ServerManager {
     this.PUT(data, callback);
   }
 
+  /* Load a group into a transport with the simpleTransport mission script. groupMemberID is the ID of any unit of the group to load */
+  transportLoad(transportID: number, groupMemberID: number, callback: CallableFunction = () => {}) {
+    var command = { transportID: transportID, groupMemberID: groupMemberID };
+    var data = { transportLoad: command };
+    this.PUT(data, callback);
+  }
+
+  /* Unload the group carried by a transport with the simpleTransport mission script */
+  transportUnload(transportID: number, callback: CallableFunction = () => {}) {
+    var command = { transportID: transportID };
+    var data = { transportUnload: command };
+    this.PUT(data, callback);
+  }
+
   reloadDatabases(callback: CallableFunction = () => {}) {
     var data = { reloadDatabases: {} };
     this.PUT(data, callback);

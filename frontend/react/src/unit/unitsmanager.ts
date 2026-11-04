@@ -40,6 +40,7 @@ import { citiesDatabase } from "./databases/citiesdatabase";
 import { UnitDatabase } from "./databases/unitdatabase";
 import { Group } from "./group";
 import { AirUnit, GroundUnit, NavyUnit, Unit } from "./unit";
+import { getUnloadRefusal } from "./transport";
 
 /** The UnitsManager handles the creation, update, and control of units. Data is strictly updated by the server ONLY. This means that any interaction from the user will always and only
  * result in a command to the server, executed by means of a REST PUT request. Any subsequent change in data will be reflected only when the new data is sent back by the server. This strategy allows
@@ -1097,6 +1098,45 @@ export class UnitsManager {
             this.#showActionMessage(units, `disembarking units`);
         }
         callback(units);
+    }
+
+    /** Load a group into a transport with the simpleTransport mission script. The whole group is loaded.
+     *
+     * @param transportUnit The transport
+     * @param groupUnits The units of the group to load
+     */
+    transportLoad(transportUnit: Unit, groupUnits: Unit[], onExecution: () => void = () => {}) {
+        let callback = (_units: Unit[]) => {
+            onExecution();
+            transportUnit.transportLoad(groupUnits[0].ID);
+            this.#showActionMessage(groupUnits, `loading into unit ${transportUnit.getUnitName()}`);
+        };
+        if (getApp().getMap().getOptions().protectDCSUnits && ![transportUnit, ...groupUnits].every((unit) => unit.isControlledByOlympus())) {
+            getApp().setState(OlympusState.UNIT_CONTROL, UnitControlSubState.PROTECTION);
+            this.#protectionCallback = callback;
+        } else callback(groupUnits);
+    }
+
+    /** Unload the groups carried by transports with the simpleTransport mission script
+     *
+     * @param units (Optional) Array of transports. If not provided, the operation will be completed on all selected units.
+     */
+    transportUnload(units: Unit[] | null = null, onExecution: () => void = () => {}) {
+        if (units === null) units = this.getSelectedUnits();
+        const unloadable = units.filter((unit) => getUnloadRefusal(unit) === null);
+        if (unloadable.length === 0) {
+            if (units.length > 0) getApp().addInfoMessage(getUnloadRefusal(units[0]) ?? "Nothing to unload");
+            return;
+        }
+        let callback = (_units: Unit[]) => {
+            onExecution();
+            unloadable.forEach((unit) => unit.transportUnload());
+            this.#showActionMessage(unloadable, `unloading group`);
+        };
+        if (getApp().getMap().getOptions().protectDCSUnits && !unloadable.every((unit) => unit.isControlledByOlympus())) {
+            getApp().setState(OlympusState.UNIT_CONTROL, UnitControlSubState.PROTECTION);
+            this.#protectionCallback = callback;
+        } else callback(unloadable);
     }
 
 

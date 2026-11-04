@@ -14,6 +14,7 @@ import {
 } from "../../events";
 import { ContextActionSet } from "../../unit/contextactionset";
 import { getApp } from "../../olympusapp";
+import { getUnloadRefusal } from "../../unit/transport";
 
 export function MapContextMenu(props: {}) {
   const [appState, setAppState] = useState(OlympusState.NOT_INITIALIZED);
@@ -117,6 +118,12 @@ export function MapContextMenu(props: {}) {
         disembarkAction.setDisabled(false);
       }
     }
+  }
+
+  // The "Unload group" action is only available if the clicked transport is carrying a group, is on the ground and is not moving
+  if (appSubState === UnitControlSubState.UNIT_CONTEXT_MENU) {
+    const unloadAction = reorderedActions.find((action) => action === ContextActions.UNLOAD_GROUP);
+    if (unloadAction && unit) unloadAction.setDisabled(getUnloadRefusal(unit) !== null);
   }
 
   return (

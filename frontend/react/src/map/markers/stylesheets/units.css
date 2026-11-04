@@ -609,7 +609,8 @@
   display: inline-block;
   height: 12px;
   margin-left: 0px;
-  width: 12px;
+  min-width: 12px;
+  white-space: nowrap;
   background-color: "red";
 }
 

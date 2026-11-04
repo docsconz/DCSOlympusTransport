@@ -91,6 +91,7 @@ import { SpotEditMarker } from "../map/markers/spoteditmarker";
 import { SpotMarker } from "../map/markers/spotmarker";
 import { Coalition } from "../types/types";
 import { PickupMarker } from "../map/markers/pickupmarker";
+import { getLoadRefusal, getSelectedPassengerGroup, isTransportType, shortenGroupName, watchTransportCommand } from "./transport";
 
 const bearingStrings = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west", "north"];
 
@@ -571,8 +572,12 @@ export abstract class Unit extends CustomMarker {
 
         this.on("mouseover", () => {
             if (this.belongsToCommandedCoalition()) this.setHighlighted(true);
+            this.#updateTransportCursor(true);
         });
-        this.on("mouseout", () => this.setHighlighted(false));
+        this.on("mouseout", () => {
+            this.setHighlighted(false);
+            this.#updateTransportCursor(false);
+        });
         getApp()
             .getMap()
             .on("zoomend", (e: any) => this.#onZoom(e));
@@ -882,6 +887,7 @@ export abstract class Unit extends CustomMarker {
                     break;
                 case DataIndexes.loadedGroupName:
                     this.#loadedGroupName = dataExtractor.extractString();
+                    updateMarker = true; /* The badge shows the name */
                     break;
                 case DataIndexes.customInteger:
                     this.#customInteger = dataExtractor.extractUInt32();
@@ -1242,6 +1248,7 @@ export abstract class Unit extends CustomMarker {
         contextActionSet.addContextAction(this, ContextActions.FIRE_LASER);
         contextActionSet.addContextAction(this, ContextActions.FIRE_INFRARED);
         if (ENABLE_BUILTIN_EMBARK) contextActionSet.addContextAction(this, ContextActions.EMBARK);
+        if (isTransportType(this)) contextActionSet.addContextAction(this, ContextActions.UNLOAD_GROUP);
 
         contextActionSet.addDefaultContextAction(this, ContextActions.MOVE);
     }
@@ -1795,6 +1802,20 @@ export abstract class Unit extends CustomMarker {
         getApp().getServerManager().disembarkUnits(this.ID);
     }
 
+    /** Ask this transport to load the group that a unit belongs to, using the simpleTransport mission script */
+    transportLoad(groupMemberID: number) {
+        getApp()
+            .getServerManager()
+            .transportLoad(this.ID, groupMemberID, (commandHash: string) => watchTransportCommand(commandHash));
+    }
+
+    /** Ask this transport to unload its group, using the simpleTransport mission script */
+    transportUnload() {
+        getApp()
+            .getServerManager()
+            .transportUnload(this.ID, (commandHash: string) => watchTransportCommand(commandHash));
+    }
+
     /** Show temporary engagement ring when unit is selected */
     showTemporaryEngagementRing() {
         if (
@@ -1944,12 +1965,40 @@ export abstract class Unit extends CustomMarker {
 
     #onRightShortClick(e: any) {
         window.clearTimeout(this.#rightMouseDownTimeout);
+        if (this.#tryLoadSelectedGroup()) return;
         if (
             getApp().getState() === OlympusState.UNIT_CONTROL &&
             getApp().getMap().getDefaultContextAction() &&
             getApp().getMap().getDefaultContextAction()?.getTarget() === ContextActionTarget.POINT
         )
             getApp().getMap().executeDefaultContextAction(null, this.getPosition(), e.originalEvent);
+    }
+
+    /** If a group of passengers is selected and this unit is a transport, right-clicking it loads the group (or says why it can not).
+     *
+     * @returns true if the click was used for loading and must not be handled as an ordinary right click
+     */
+    #tryLoadSelectedGroup() {
+        if (getApp().getState() !== OlympusState.UNIT_CONTROL || !isTransportType(this)) return false;
+        const groupUnits = getSelectedPassengerGroup(getApp().getUnitsManager().getSelectedUnits());
+        if (groupUnits === null) return false;
+
+        const refusal = getLoadRefusal(this, groupUnits);
+        if (refusal !== null) getApp().addInfoMessage(refusal);
+        else getApp().getUnitsManager().transportLoad(this, groupUnits);
+        return true;
+    }
+
+    /** Show the "can load" or "can not load" cursor while the mouse is over a transport and a group of passengers is selected */
+    #updateTransportCursor(mouseOver: boolean) {
+        const marker = this.getElement()?.querySelector(`[data-object|="unit"]`);
+        if (marker === null || marker === undefined) return;
+        marker.classList.remove("transport-load-cursor", "transport-no-load-cursor");
+        if (!mouseOver || getApp().getState() !== OlympusState.UNIT_CONTROL || !isTransportType(this)) return;
+
+        const groupUnits = getSelectedPassengerGroup(getApp().getUnitsManager().getSelectedUnits());
+        if (groupUnits === null) return;
+        marker.classList.add(getLoadRefusal(this, groupUnits) === null ? "transport-load-cursor" : "transport-no-load-cursor");
     }
 
     #onRightLongClick(e: any) {
@@ -2064,6 +2113,13 @@ export abstract class Unit extends CustomMarker {
             if (element.querySelector(".unit-capacity")) {
                 if (ENABLE_BUILTIN_EMBARK && this.#canTransportUnits) {
                     (element.querySelector(".unit-capacity") as HTMLElement).innerText = `${this.#onBoardUnitsIDs.length}/${this.#maximumTransportableUnits}`;
+                }
+                /* Name of the group loaded with the simpleTransport script */
+                if (this.#loadedGroupName !== "") {
+                    (element.querySelector(".unit-capacity") as HTMLElement).innerText = shortenGroupName(this.#loadedGroupName);
+                    (element.querySelector(".unit-capacity") as HTMLElement).title = this.#loadedGroupName;
+                } else if (!(ENABLE_BUILTIN_EMBARK && this.#canTransportUnits)) {
+                    (element.querySelector(".unit-capacity") as HTMLElement).innerText = "";
                 }
             }
 

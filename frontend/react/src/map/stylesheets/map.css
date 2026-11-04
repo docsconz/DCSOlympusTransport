@@ -199,6 +199,15 @@ path.leaflet-interactive:focus {
   cursor: url("/images/cursors/attack.svg"), auto !important;
 }
 
+/* Shown over a transport while a group of passengers is selected: the group can / can not be loaded into it */
+.transport-load-cursor {
+  cursor: url("/images/cursors/transport-load.svg") 3 3, auto !important;
+}
+
+.transport-no-load-cursor {
+  cursor: url("/images/cursors/transport-no-load.svg") 3 3, auto !important;
+}
+
 .follow-cursor {
   cursor: url("/images/cursors/follow.svg"), auto !important;
 }

@@ -949,6 +949,18 @@ export namespace ContextActions {
     { type: ContextActionType.ENGAGE, code: "KeyD", ctrlKey: true, shiftKey: false }
   );
 
+  export const UNLOAD_GROUP = new ContextAction(
+    "unload-group",
+    "Unload group",
+    "Unloads the group carried by the transport, placing it in front of the transport. The transport must be on the ground and stationary. Needs the simpleTransport script in the mission.",
+    faTruckPlane,
+    ContextActionTarget.NONE,
+    (units: Unit[], _1: Unit | null, _2) => {
+      getApp().getUnitsManager().transportUnload(units);
+    },
+    { type: ContextActionType.ENGAGE, code: null }
+  );
+
   export const CARPET_BOMB = new ContextAction(
     "carpet-bomb",
     "Carpet bomb location",
