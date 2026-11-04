@@ -153,3 +153,63 @@ function Olympus.transportUnload(transportID, requestHash)
 		Olympus.reportTransportResult(requestHash, success == true, success == true and "ok" or "refused", tostring(message))
 	end
 end
+
+-- DIAGNOSTIC (temporary, to be removed): finds out whether this Lua environment can reach the mission's simpleTransport
+-- script. Runs a few times after the mission starts and writes "TRANSPORT-DIAG" lines to the DCS log. Changes nothing.
+function Olympus.transportDiagnostic(state, time)
+	local function say(text)
+		Olympus.log:info("TRANSPORT-DIAG " .. tostring(text))
+	end
+	local function typeOfGlobal(name)
+		return type(rawget(_G, name))
+	end
+
+	state.runs = state.runs + 1
+	say("--- run " .. state.runs .. " at mission time " .. tostring(timer.getTime()))
+
+	for _, name in ipairs({ "simpleTransport", "net", "trigger", "env", "timer", "world", "coalition", "mist", "Group", "Unit" }) do
+		say("global " .. name .. " = " .. typeOfGlobal(name))
+	end
+
+	-- Anything in this environment whose name looks related
+	local related = {}
+	for key, _ in pairs(_G) do
+		if type(key) == "string" and (string.find(string.lower(key), "transport") or string.find(string.lower(key), "simple")) then
+			table.insert(related, key)
+		end
+	end
+	say("globals with 'transport' or 'simple' in the name: " .. (#related > 0 and table.concat(related, ", ") or "none"))
+
+	-- Can this environment run code in other Lua states?
+	local net = rawget(_G, "net")
+	if type(net) == "table" and type(net.dostring_in) == "function" then
+		for _, stateName in ipairs({ "mission", "server" }) do
+			local code = "return tostring(type(simpleTransport)) .. ' api=' .. tostring(simpleTransport and simpleTransport.apiVersion)"
+			local results = { pcall(net.dostring_in, stateName, code) }
+			local parts = {}
+			for i = 1, #results do
+				parts[i] = tostring(results[i])
+			end
+			say("net.dostring_in(" .. stateName .. ") returned: " .. table.concat(parts, " | "))
+		end
+	else
+		say("net.dostring_in is not available here")
+	end
+
+	-- Can this environment run a script inside the mission? (only checks that the call exists, does not call it)
+	local trig = rawget(_G, "trigger")
+	if type(trig) == "table" and type(trig.action) == "table" then
+		say("trigger.action.doScript = " .. type(trig.action.doScript))
+	end
+
+	if state.runs >= 8 then
+		say("--- done")
+		return nil
+	end
+	return time + 20
+end
+
+local diagnosticTimer = rawget(_G, "timer")
+if type(diagnosticTimer) == "table" and diagnosticTimer.scheduleFunction ~= nil then
+	diagnosticTimer.scheduleFunction(Olympus.transportDiagnostic, { runs = 0 }, diagnosticTimer.getTime() + 5)
+end
