@@ -260,22 +260,28 @@ local function forEachMizVehicleGroup(callback)
     return nil
 end
 
--- Player-drivable vehicle slots (Combined Arms) are not returned by coalition.getPlayers (Hoggit wiki), and
--- getPlayerName may not work for them, so they are recognised from the mission file: units whose skill is
--- "Client" or "Player". UNVERIFIED in game: check that this matches how your mission defines vehicle slots.
-local function scanClientSlots()
-    local slots = {}
+-- Vehicles that players can take over (Combined Arms). coalition.getPlayers does not return them (Hoggit wiki)
+-- and getPlayerName may be nil for them, so they are recognised from the mission file instead:
+--   clientSlots: units whose skill is "Client" or "Player" (treated as human-controlled)
+--   driveSlots:  units with playerCanDrive = true (AI groups that a player can jump into; they get the F10
+--                menu on their group, which only a player who jumps in will see)
+-- Groups spawned during the mission are not in the mission file, so they only get a menu through getPlayers.
+local function scanSlots()
+    local clients, drivable = {}, {}
     forEachMizVehicleGroup(function(vehicleGroup)
         for _, unit in ipairs(vehicleGroup.units or {}) do
             if unit.skill == "Client" or unit.skill == "Player" then
-                slots[unit.name] = true
+                clients[unit.name] = true
+            end
+            if unit.playerCanDrive == true then
+                drivable[unit.name] = true
             end
         end
         return nil
     end)
-    return slots
+    return clients, drivable
 end
-simpleTransport.clientSlots = scanClientSlots()
+simpleTransport.clientSlots, simpleTransport.driveSlots = scanSlots()
 
 local function isPlayerControlled(unit)
     return unit:getPlayerName() ~= nil or simpleTransport.clientSlots[unit:getName()] == true
@@ -318,10 +324,11 @@ local function transportKind(unit)
 end
 
 -- CTLD reports that DCS can say a unit is in the air while it is actually on the ground, so for PLAYER units
--- the speed is checked too. AI units rely on inAir() alone, so an AI vehicle that is driving is NOT refused.
+-- (and vehicles a player can drive) the speed is checked too. Other AI units rely on inAir() alone, so an AI
+-- vehicle that cannot be player-driven and is driving is NOT refused.
 local function isInAir(unit)
-    local isPlayer = isPlayerControlled(unit)
-    return unit:inAir() or (isPlayer and speedOf(unit) >= MOVING_SPEED_THRESHOLD)
+    local checkSpeed = isPlayerControlled(unit) or simpleTransport.driveSlots[unit:getName()] == true
+    return unit:inAir() or (checkSpeed and speedOf(unit) >= MOVING_SPEED_THRESHOLD)
 end
 
 -- Shortest distance from a unit to any living unit of the group, or nil when the group has none.
@@ -780,10 +787,12 @@ local function poll()
         end
     end
 
-    for unitName in pairs(simpleTransport.clientSlots) do
-        local unit = getUnit(unitName)
-        if unit then
-            ensureMenuForPlayer(unit)
+    for _, slots in ipairs({ simpleTransport.clientSlots, simpleTransport.driveSlots }) do
+        for unitName in pairs(slots) do
+            local unit = getUnit(unitName)
+            if unit then
+                ensureMenuForPlayer(unit)
+            end
         end
     end
 

@@ -614,6 +614,33 @@ do -- Combined Arms vehicle slots: found in the mission file, not through getPla
     check("stopped vehicle slot unloads", ok, why)
 end
 
+do -- AI vehicle groups that a player can jump into (playerCanDrive), as in the owner's test mission
+    local mission = { coalition = { blue = { country = { { name = "USA", vehicle = { group = {
+        { name = "Ground", units = { { name = "Ground-1-1", type = "M-113", skill = "Average", playerCanDrive = true } } },
+        { name = "Ground-1", units = { { name = "Ground-1-2", type = "M-1 Abrams", skill = "Average", playerCanDrive = true } } },
+        { name = "Loadable Group", units = { { name = "Loadable Group-1", type = "Soldier M4", skill = "Average", playerCanDrive = true },
+                                              { name = "Loadable Group-2", type = "Soldier M4", skill = "Average", playerCanDrive = false } } },
+        { name = "Plain", units = { { name = "Plain-1", type = "BMP-2", skill = "Average", playerCanDrive = false } } } } } } } } } }
+    local w = newWorld({ mission = mission })
+    local m113 = w.addGroup({ name = "Ground", side = BLUE, units = { { name = "Ground-1-1", type = "M-113", x = 0, z = 0 } } })
+    local abrams = w.addGroup({ name = "Ground-1", side = BLUE, units = { { name = "Ground-1-2", type = "M-1 Abrams", x = 50, z = 0 } } })
+    local plain = w.addGroup({ name = "Plain", side = BLUE, units = { { name = "Plain-1", type = "BMP-2", x = 90, z = 0 } } })
+    w.addGroup({ name = "Loadable Group", side = BLUE, units = {
+        { name = "Loadable Group-1", type = "Soldier M4", x = 5, z = 0 }, { name = "Loadable Group-2", type = "Soldier M4", x = 8, z = 0 } } })
+    simpleTransport._internal.poll()
+    check("drivable APC group gets a menu", #menusFor(w, m113.id) == 4, #menusFor(w, m113.id))
+    check("drivable tank gets no menu", #menusFor(w, abrams.id) == 0)
+    check("non-drivable vehicle gets no menu", #menusFor(w, plain.id) == 0)
+    check("drivable infantry is not treated as a player (still loadable)",
+          pressMenu(w, m113.id, "Load group") and simpleTransport.getLoadedGroupName("Ground-1-1") == "Loadable Group", lastText(w))
+    w.units["Ground-1-1"].speed = 3
+    local ok, why = simpleTransport.unload("Ground-1-1")
+    check("moving drivable vehicle cannot unload", ok == false and contains(why, "stop on the ground"), why)
+    w.units["Ground-1-1"].speed = 0
+    ok, why = simpleTransport.unload("Ground-1-1")
+    check("stopped drivable vehicle unloads", ok, why)
+end
+
 do -- a destroyed transport loses its cargo
     local w = newWorld()
     infantry(w, "Inf 1", 5, 0)
