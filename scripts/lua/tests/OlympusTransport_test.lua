@@ -247,6 +247,23 @@ do
 end
 
 -- ---------------------------------------------------------------------------------------------
+-- Loaded group name for the units data
+-- ---------------------------------------------------------------------------------------------
+do
+	local env = newEnv()
+	check("no script gives an empty name", Olympus.getLoadedGroupName("APC 1") == "")
+	env.installScript()
+	check("script without getLoadedGroupName gives an empty name", Olympus.getLoadedGroupName("APC 1") == "")
+	simpleTransport.getLoadedGroupName = function(unitName) if unitName == "APC 1" then return "Inf A" end return nil end
+	check("loaded group name is returned", Olympus.getLoadedGroupName("APC 1") == "Inf A")
+	check("unit without a group gives an empty name", Olympus.getLoadedGroupName("APC 2") == "")
+	simpleTransport.getLoadedGroupName = function() error("boom") end
+	check("a failing script gives an empty name", Olympus.getLoadedGroupName("APC 1") == "")
+	simpleTransport.getLoadedGroupName = function() return 42 end
+	check("a non-string answer gives an empty name", Olympus.getLoadedGroupName("APC 1") == "")
+end
+
+-- ---------------------------------------------------------------------------------------------
 -- Contract with the real mission script: the bridge must accept it and understand its answers
 -- ---------------------------------------------------------------------------------------------
 do
@@ -260,6 +277,7 @@ do
 	chunk()
 	local status = Olympus.getTransportScriptStatus()
 	check("bridge accepts the real mission script", status.present == true and status.version == simpleTransport.apiVersion, status.message)
+	check("real script reports no loaded group for a unit that carries nothing", Olympus.getLoadedGroupName("No such unit") == "")
 	local ok, message = simpleTransport.load("No such unit", "No such group")
 	check("real script answers (false, reason) for an unknown unit", ok == false and type(message) == "string")
 	ok, message = simpleTransport.unload("No such unit")

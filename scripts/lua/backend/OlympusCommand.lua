@@ -1538,6 +1538,10 @@ function Olympus.setUnitsData(arg, time)
 							table["groupID"] = group:getID()
 							table["groupName"] = group:getName()
 							table["isHuman"] = (unit:getPlayerName() ~= nil)
+							-- Name of the group loaded into this unit by the simpleTransport mission script, empty if none (function defined in OlympusTransport.lua)
+							if Olympus.getLoadedGroupName ~= nil then
+								table["loadedGroupName"] = Olympus.getLoadedGroupName(unit:getName())
+							end
 							table["hasTask"] = controller:hasTask()
 							table["ammo"] = unit:getAmmo() --TODO remove a lot of stuff we don't really need
 							table["fuel"] = unit:getFuel()

@@ -41,6 +41,21 @@ function Olympus.getTransportScriptStatus()
 	return { present = true, version = version, code = "ok", message = "" }
 end
 
+-- Name of the group that the unit with the given DCS name has loaded, or an empty string if it carries none or the
+-- mission has no (usable) simpleTransport script. Called for every unit when the units data is collected, so it must be cheap and never fail.
+function Olympus.getLoadedGroupName(unitName)
+	local script = Olympus.getTransportScript()
+	if script == nil or type(script.getLoadedGroupName) ~= "function" then
+		return ""
+	end
+
+	local called, name = pcall(script.getLoadedGroupName, unitName)
+	if called and type(name) == "string" then
+		return name
+	end
+	return ""
+end
+
 -- Is this unit controlled by a human? Olympus only loads and unloads AI-controlled units.
 -- A unit counts as human if it has a player name (the same test Olympus uses for its isHuman data) or if DCS lists it
 -- among the occupied player units. The second test is a safety net for vehicles that a player jumped into.
