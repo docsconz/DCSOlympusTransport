@@ -661,6 +661,42 @@ private:
 	const double weight;
 };
 
+/* Load a group into a transport, using the simpleTransport mission script. The result is reported in Olympus.executionResults */
+class TransportLoad : public Command
+{
+public:
+	TransportLoad(unsigned int transportID, string groupName, function<void(void)> callback = []() {}) :
+		Command(callback),
+		transportID(transportID),
+		groupName(groupName)
+	{
+		priority = CommandPriority::MEDIUM;
+	};
+	virtual string getString();
+	virtual unsigned int getLoad() { return 5; }
+
+private:
+	const unsigned int transportID;
+	const string groupName;
+};
+
+/* Unload the group carried by a transport, using the simpleTransport mission script. The result is reported in Olympus.executionResults */
+class TransportUnload : public Command
+{
+public:
+	TransportUnload(unsigned int transportID, function<void(void)> callback = []() {}) :
+		Command(callback),
+		transportID(transportID)
+	{
+		priority = CommandPriority::MEDIUM;
+	};
+	virtual string getString();
+	virtual unsigned int getLoad() { return 5; }
+
+private:
+	const unsigned int transportID;
+};
+
 /* Register draw argument */
 class RegisterDrawArgument : public Command
 {

@@ -176,6 +176,7 @@ export abstract class Unit extends CustomMarker {
     #cargoWeight: number = 0;
     #drawingArguments: DrawingArgument[] = [];
     #customString: string = "";
+    #loadedGroupName: string = ""; /* Name of the group loaded into this unit by the simpleTransport mission script, empty if none */
     #customInteger: number = 0;
     #posture: number = 1;
     #canTransportUnits: boolean = false;
@@ -443,6 +444,9 @@ export abstract class Unit extends CustomMarker {
     }
     getCustomString() {
         return this.#customString;
+    }
+    getLoadedGroupName() {
+        return this.#loadedGroupName;
     }
     getCustomInteger() {
         return this.#customInteger;
@@ -875,6 +879,9 @@ export abstract class Unit extends CustomMarker {
                     break;
                 case DataIndexes.customString:
                     this.#customString = dataExtractor.extractString();
+                    break;
+                case DataIndexes.loadedGroupName:
+                    this.#loadedGroupName = dataExtractor.extractString();
                     break;
                 case DataIndexes.customInteger:
                     this.#customInteger = dataExtractor.extractUInt32();

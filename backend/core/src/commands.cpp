@@ -443,6 +443,46 @@ string SetCargoWeight::getString()
     return commandSS.str();
 }
 
+/* Escapes a text so that it can be safely placed between double quotes in a Lua command string */
+static string escapeForLua(const string& text)
+{
+    string escaped;
+    for (char c : text) {
+        if (c == '\\' || c == '"')
+            escaped += '\\';
+        if (c == '\n')
+            escaped += "\\n";
+        else if (c == '\r')
+            escaped += "\\r";
+        else
+            escaped += c;
+    }
+    return escaped;
+}
+
+/* TransportLoad command */
+string TransportLoad::getString()
+{
+    std::ostringstream commandSS;
+    commandSS.precision(10);
+    commandSS << "Olympus.transportLoad, "
+        << transportID << ", "
+        << "\"" << escapeForLua(groupName) << "\"" << ", "
+        << "\"" << this->getHash() << "\"";
+    return commandSS.str();
+}
+
+/* TransportUnload command */
+string TransportUnload::getString()
+{
+    std::ostringstream commandSS;
+    commandSS.precision(10);
+    commandSS << "Olympus.transportUnload, "
+        << transportID << ", "
+        << "\"" << this->getHash() << "\"";
+    return commandSS.str();
+}
+
 /* RegisterDrawArgument command */
 string RegisterDrawArgument::getString()
 {

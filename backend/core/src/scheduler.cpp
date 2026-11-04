@@ -929,6 +929,38 @@ void Scheduler::handleRequest(string key, json::value value, string username, js
 		}
 	}
 	/************************/
+	else if (key.compare("transportLoad") == 0)
+	{
+		if (!value.has_number_field(L"transportID") || !value.has_number_field(L"groupMemberID"))
+			log("Missing transportID or groupMemberID field for transportLoad command");
+		else {
+			/* groupMemberID is the ID of any unit of the group to load: the whole group is loaded, and it is identified by its name */
+			Unit* transport = unitsManager->getUnit(value[L"transportID"].as_integer());
+			Unit* groupMember = unitsManager->getUnit(value[L"groupMemberID"].as_integer());
+			if (transport != nullptr && groupMember != nullptr) {
+				log(username + " asked unit " + transport->getUnitName() + "(" + transport->getName() + ") to load group " + groupMember->getGroupName(), true);
+				command = dynamic_cast<Command*>(new TransportLoad(transport->getID(), groupMember->getGroupName()));
+			}
+			else
+				log("transportLoad command refers to a unit that does not exist");
+		}
+	}
+	/************************/
+	else if (key.compare("transportUnload") == 0)
+	{
+		if (!value.has_number_field(L"transportID"))
+			log("Missing transportID field for transportUnload command");
+		else {
+			Unit* transport = unitsManager->getUnit(value[L"transportID"].as_integer());
+			if (transport != nullptr) {
+				log(username + " asked unit " + transport->getUnitName() + "(" + transport->getName() + ") to unload its group", true);
+				command = dynamic_cast<Command*>(new TransportUnload(transport->getID()));
+			}
+			else
+				log("transportUnload command refers to a unit that does not exist");
+		}
+	}
+	/************************/
 	else if (key.compare("registerDrawArgument") == 0)
 	{
 		unsigned int ID = value[L"ID"].as_integer();

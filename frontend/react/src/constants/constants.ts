@@ -596,6 +596,7 @@ export enum DataIndexes {
   suppressionLevel,
   scenicFunctionProbability,
   launcherID,
+  loadedGroupName,
   endOfData = 255,
 }
 

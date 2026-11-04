@@ -138,6 +138,7 @@ public:
 	virtual void setDrawArguments(vector<DataTypes::DrawArgument> newValue);
 	virtual void setCustomString(string newValue) { updateValue(customString, newValue, DataIndex::customString); }
 	virtual void setCustomInteger(unsigned long newValue) { updateValue(customInteger, newValue, DataIndex::customInteger); }
+	virtual void setLoadedGroupName(string newValue) { updateValue(loadedGroupName, newValue, DataIndex::loadedGroupName); }
 	virtual void setCanTransportUnits(bool newValue, bool force = false);
 	virtual void setOnBoardUnitsIDs(vector<unsigned int> newValue);
 	virtual void setMaximumTransportableUnits(unsigned int newValue, bool force = false);
@@ -223,6 +224,7 @@ public:
 	virtual vector<DataTypes::DrawArgument> getDrawArguments() { return drawArguments; }
 	virtual string getCustomString() { return customString; }
 	virtual unsigned long getCustomInteger() { return customInteger; }
+	virtual string getLoadedGroupName() { return loadedGroupName; }
 	virtual bool getCanTransportUnits() { return canTransportUnits; }
 	virtual vector<unsigned int> getOnBoardUnitsIDs() { return onBoardUnitsIDs; }
 	virtual int getMaximumTransportableUnits() { return maximumTransportableUnits; }
@@ -313,6 +315,7 @@ protected:
 	vector<DataTypes::DrawArgument> drawArguments;
 	string customString = "";
 	unsigned long customInteger = 0;
+	string loadedGroupName = "";	/* Name of the group loaded into this unit by the simpleTransport mission script, empty if none */
 	bool canTransportUnits = false;
 	vector<unsigned int> onBoardUnitsIDs;
 	unsigned int maximumTransportableUnits = 10;

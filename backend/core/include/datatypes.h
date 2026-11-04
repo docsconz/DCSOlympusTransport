@@ -84,6 +84,7 @@ namespace DataIndex {
 		suppressionLevel,
 		scenicFunctionProbability,
 		launcherID,
+		loadedGroupName,
 		lastIndex,
 		endOfData = 255
 	};

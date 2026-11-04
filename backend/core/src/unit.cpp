@@ -51,6 +51,9 @@ void Unit::update(json::value json, double dt)
 	if (json.has_string_field(L"groupName"))
 		setGroupName(to_string(json[L"groupName"]));
 
+	if (json.has_string_field(L"loadedGroupName"))
+		setLoadedGroupName(to_string(json[L"loadedGroupName"]));
+
 	if (json.has_string_field(L"callsign"))
 		setCallsign(to_string(json[L"callsign"]));
 
@@ -400,6 +403,7 @@ void Unit::getData(stringstream& ss, unsigned long long time)
 					case DataIndex::shootingProjectionWeaponMass:		appendNumeric(ss, datumIndex, shootingProjectionWeaponMass); break;
 					case DataIndex::suppressionLevel:					appendNumeric(ss, datumIndex, suppressionLevel); break;
 					case DataIndex::scenicFunctionProbability:			appendNumeric(ss, datumIndex, scenicFunctionProbability); break;
+					case DataIndex::loadedGroupName:					appendString(ss, datumIndex, loadedGroupName); break;
 				}
 			}
 		}
