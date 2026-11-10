@@ -1,15 +1,15 @@
--- TEMPORARY DIAGNOSTIC hook, version 6. Copy this file to
+-- TEMPORARY DIAGNOSTIC hook, version 7. Copy this file to
 --   <Saved Games>\DCS.openbeta_server\Scripts\Hooks\OlympusTransportMissionProbe.lua
 -- (replacing the previous version) and restart DCS. It writes "TRANSPORT-PROBE" lines to dcs.log; code that runs
 -- inside the mission also writes "PROBE-MISSIONSIDE" lines.
 --
--- What the previous probes showed: the hook can run code inside the mission with a_do_script, but the mission and
--- Olympus's Lua share no objects at all (not even the string or math tables), so Olympus can not call the mission
--- script directly. What is left is passing messages through things the DCS engine itself holds for both sides.
--- This version tests two of those, with results going from the mission to Olympus's Lua ("server" state):
---   - a user flag with a text name (carries a number)
---   - a map mark (carries a text), created for coalition 0 (neutral), which no player should be on, so that players
---     are unlikely to see it. A mark with the text "OLYPROBE|unit|group" may exist on the map during the test.
+-- Probe v6 showed that a user flag and a neutral map mark written in the mission can be read from the server state
+-- (where Olympus's Lua runs). This version tests the opposite direction, which would let Olympus send commands to the
+-- mission script without any change to the Olympus DLL:
+--   1. The hook starts a small poller inside the mission (with a_do_script). It looks for a flag and a map mark.
+--   2. The server state writes that flag and a mark with a command text.
+--   3. The poller reports what it saw, removes the mark and answers with another flag, which the server state reads.
+-- A mark "OLYPROBECMD|load|APC 1|Infantry 1" may exist on the map for a few seconds.
 
 local probe = { runs = 0, nextTime = nil, active = false }
 
@@ -26,41 +26,56 @@ local function ask(stateName, code)
 	say("net.dostring_in(" .. stateName .. ") returned: " .. table.concat(parts, " | "))
 end
 
--- Runs inside the mission scripting environment
+-- Runs inside the mission scripting environment: installs the poller
 local MISSION_SIDE = [=[
-env.info('PROBE-MISSIONSIDE start: simpleTransport is ' .. type(simpleTransport) .. ', api version ' .. tostring(simpleTransport and simpleTransport.apiVersion))
-trigger.action.setUserFlag('OLYPROBE_RESULT_abc123', 42)
-env.info('PROBE-MISSIONSIDE flag set')
-local ok, err = pcall(trigger.action.markToCoalition, 98765, 'OLYPROBE|unit|group', {x = 0, y = 0, z = 0}, 0, true)
-env.info('PROBE-MISSIONSIDE markToCoalition(neutral) ok=' .. tostring(ok) .. ' ' .. tostring(err))
-]=]
-
--- Runs in the server state (where Olympus's Lua runs)
-local SERVER_SIDE = [=[
-local out = {}
-out[#out + 1] = 'flag=' .. tostring(trigger.misc.getUserFlag('OLYPROBE_RESULT_abc123'))
-local okm, marks = pcall(function() return world.getMarkPanels() end)
-if okm and type(marks) == 'table' then
-	local count = 0
-	for _, m in pairs(marks) do
-		count = count + 1
-		if m.idx == 98765 then
-			local fields = {}
-			for k, v in pairs(m) do
-				if type(v) ~= 'table' then fields[#fields + 1] = tostring(k) .. '=' .. tostring(v) end
+local polls = 0
+local function poll(_, time)
+	polls = polls + 1
+	local seen = {}
+	local flag = trigger.misc.getUserFlag('OLYPROBE_CMD')
+	local ok, marks = pcall(function() return world.getMarkPanels() end)
+	if ok and type(marks) == 'table' then
+		for _, m in pairs(marks) do
+			if type(m.text) == 'string' and string.sub(m.text, 1, 12) == 'OLYPROBECMD|' then
+				seen[#seen + 1] = 'mark ' .. tostring(m.idx) .. ' "' .. m.text .. '"'
+				trigger.action.removeMark(m.idx)
 			end
-			table.sort(fields)
-			out[#out + 1] = 'MARK FOUND: ' .. table.concat(fields, ', ')
 		end
+	else
+		env.info('PROBE-MISSIONSIDE getMarkPanels failed: ' .. tostring(marks))
 	end
-	out[#out + 1] = 'markCount=' .. count
-else
-	out[#out + 1] = 'getMarkPanels failed: ' .. tostring(marks)
+	if flag ~= 0 or #seen > 0 then
+		env.info('PROBE-MISSIONSIDE poll ' .. polls .. ': flag=' .. tostring(flag) .. ', ' .. (#seen > 0 and table.concat(seen, '; ') or 'no mark'))
+		trigger.action.setUserFlag('OLYPROBE_CMD', 0)
+		trigger.action.setUserFlag('OLYPROBE_ACK', 99)
+	end
+	if polls >= 60 then return nil end
+	return time + 2
 end
-return table.concat(out, ' | ')
+timer.scheduleFunction(poll, nil, timer.getTime() + 2)
+env.info('PROBE-MISSIONSIDE poller installed; simpleTransport is ' .. type(simpleTransport))
 ]=]
 
-local CLEANUP = "trigger.action.removeMark(98765) trigger.action.setUserFlag('OLYPROBE_RESULT_abc123', 0)"
+-- Runs in the server state: sends the command
+local SERVER_SEND = [=[
+trigger.action.setUserFlag('OLYPROBE_CMD', 5)
+local ok, err = pcall(trigger.action.markToCoalition, 98770, 'OLYPROBECMD|load|APC 1|Infantry 1', {x = 0, y = 0, z = 0}, 0, true)
+return 'command written, markToCoalition ok=' .. tostring(ok) .. ' ' .. tostring(err)
+]=]
+
+-- Runs in the server state: reads the answer
+local SERVER_READ = [=[
+local count = 0
+local ok, marks = pcall(function() return world.getMarkPanels() end)
+if ok and type(marks) == 'table' then
+	for _, m in pairs(marks) do
+		if m.idx == 98770 then count = count + 1 end
+	end
+end
+return 'ack flag=' .. tostring(trigger.misc.getUserFlag('OLYPROBE_ACK')) .. ', command flag=' .. tostring(trigger.misc.getUserFlag('OLYPROBE_CMD')) .. ', command mark still present: ' .. tostring(count > 0)
+]=]
+
+local CLEANUP = "trigger.action.removeMark(98770) trigger.action.setUserFlag('OLYPROBE_CMD', 0) trigger.action.setUserFlag('OLYPROBE_ACK', 0)"
 
 local callbacks = {}
 
@@ -68,7 +83,7 @@ function callbacks.onSimulationStart()
 	probe.runs = 0
 	probe.active = true
 	probe.nextTime = DCS.getRealTime() + 60
-	say("probe v6: mission started")
+	say("probe v7: mission started")
 end
 
 function callbacks.onSimulationStop()
@@ -76,7 +91,7 @@ function callbacks.onSimulationStop()
 end
 
 function callbacks.onSimulationFrame()
-	if not probe.active or probe.runs >= 4 then
+	if not probe.active or probe.runs >= 5 then
 		return
 	end
 	if DCS.getRealTime() < probe.nextTime then
@@ -87,14 +102,16 @@ function callbacks.onSimulationFrame()
 	say("--- run " .. probe.runs)
 	if probe.runs == 1 then
 		ask("mission", "a_do_script(" .. string.format("%q", MISSION_SIDE) .. ")")
+	elseif probe.runs == 2 then
+		ask("server", SERVER_SEND)
 	else
-		ask("server", SERVER_SIDE)
+		ask("server", SERVER_READ)
 	end
-	if probe.runs == 4 then
+	if probe.runs == 5 then
 		ask("mission", "a_do_script(" .. string.format("%q", CLEANUP) .. ")")
 		say("--- done")
 	end
 end
 
 DCS.setUserCallbacks(callbacks)
-say("probe v6 file loaded")
+say("probe v7 file loaded")
