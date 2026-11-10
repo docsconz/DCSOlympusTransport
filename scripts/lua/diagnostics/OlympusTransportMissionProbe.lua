@@ -1,4 +1,4 @@
--- TEMPORARY DIAGNOSTIC hook, version 4. Copy this file to
+-- TEMPORARY DIAGNOSTIC hook, version 5. Copy this file to
 --   <Saved Games>\DCS.openbeta_server\Scripts\Hooks\OlympusTransportMissionProbe.lua
 -- (replacing the previous version) and restart DCS. It writes "TRANSPORT-PROBE" lines to dcs.log; code that runs
 -- inside the mission also writes "PROBE-MISSIONSIDE" lines. It registers one harmless do-nothing event handler.
@@ -26,41 +26,56 @@ local function ask(stateName, code)
 	say("net.dostring_in(" .. stateName .. ") returned: " .. table.concat(parts, " | "))
 end
 
+-- Shared objects that the mission side will try to leave an API table on. If the same object is visible from both
+-- environments, the server state can read it.
+local OBJECTS = [[{ env = env, world = world, trigger = trigger, ['trigger.misc'] = trigger and trigger.misc, ['trigger.action'] = trigger and trigger.action, coalition = coalition, timer = timer, string = string, math = math, table = table, Unit = Unit, Group = Group, land = land, missionCommands = missionCommands, Airbase = Airbase, StaticObject = StaticObject }]]
+
 -- Runs inside the mission scripting environment
-local MISSION_SIDE = [[
+local MISSION_SIDE = [=[
 env.info('PROBE-MISSIONSIDE start: simpleTransport is ' .. type(simpleTransport) .. ', api version ' .. tostring(simpleTransport and simpleTransport.apiVersion))
-local api = { hello = function(name) return 'hello ' .. tostring(name) .. ' from the mission, simpleTransport is ' .. type(simpleTransport) end }
+local api = { hello = function(name) return 'hello ' .. tostring(name) .. ' from the mission, simpleTransport is ' .. type(simpleTransport) .. ', api ' .. tostring(simpleTransport and simpleTransport.apiVersion) end }
 local handler = { onEvent = function(self, event) end, probeApi = api }
 world.addEventHandler(handler)
-env.info('PROBE-MISSIONSIDE handler registered')
-]]
+local placed = {}
+for name, target in pairs(]=] .. OBJECTS .. [=[) do
+	if type(target) == 'table' then
+		target.__oly_probe = api
+		placed[#placed + 1] = name
+	end
+end
+table.sort(placed)
+env.info('PROBE-MISSIONSIDE handler registered; api left on: ' .. table.concat(placed, ','))
+]=]
 
 -- Runs in the server state (where Olympus's Lua runs)
-local SERVER_SIDE = [[
+local SERVER_SIDE = [=[
 local out = {}
+local function fields(t)
+	local r = {}
+	for k, v in pairs(t) do
+		if #r < 12 then r[#r + 1] = tostring(k) .. ':' .. type(v) end
+	end
+	table.sort(r)
+	return table.concat(r, ',')
+end
 local handlers = world.eventHandlers
-out[#out + 1] = 'world.eventHandlers is a ' .. type(handlers)
-local count, found = 0, nil
+local count = 0
 if type(handlers) == 'table' then
 	for key, value in pairs(handlers) do
 		count = count + 1
-		if count <= 3 then out[#out + 1] = 'entry ' .. count .. ': key ' .. type(key) .. ', value ' .. type(value) end
-		local candidates = { key, value }
-		for _, candidate in ipairs(candidates) do
-			if type(candidate) == 'table' and candidate.probeApi ~= nil then found = candidate end
-		end
+		out[#out + 1] = 'entry ' .. count .. ' key{' .. (type(key) == 'table' and fields(key) or type(key)) .. '} value{' .. (type(value) == 'table' and fields(value) or type(value)) .. '}'
 	end
 end
-out[#out + 1] = 'handlers counted: ' .. count
-if found then
-	out[#out + 1] = 'FOUND the probe handler'
-	local ok, result = pcall(found.probeApi.hello, 'Olympus')
-	out[#out + 1] = 'call worked: ' .. tostring(ok) .. ', returned: ' .. tostring(result)
-else
-	out[#out + 1] = 'probe handler NOT found'
+local found = {}
+for name, target in pairs(]=] .. OBJECTS .. [=[) do
+	if type(target) == 'table' and target.__oly_probe ~= nil then
+		local callOk, result = pcall(target.__oly_probe.hello, 'Olympus')
+		found[#found + 1] = name .. ' -> ' .. tostring(callOk) .. ': ' .. tostring(result)
+	end
 end
+out[#out + 1] = 'rendezvous objects carrying the api: ' .. (#found > 0 and table.concat(found, ' ; ') or 'NONE')
 return table.concat(out, ' | ')
-]]
+]=]
 
 local callbacks = {}
 
@@ -68,7 +83,7 @@ function callbacks.onSimulationStart()
 	probe.runs = 0
 	probe.active = true
 	probe.nextTime = DCS.getRealTime() + 60 -- the mission script needs a while to load
-	say("probe v4: mission started")
+	say("probe v5: mission started")
 end
 
 function callbacks.onSimulationStop()
@@ -96,4 +111,4 @@ function callbacks.onSimulationFrame()
 end
 
 DCS.setUserCallbacks(callbacks)
-say("probe v4 file loaded")
+say("probe v5 file loaded")
