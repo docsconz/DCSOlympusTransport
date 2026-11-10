@@ -1,12 +1,11 @@
--- TEMPORARY DIAGNOSTIC hook, version 2. Copy this file to
+-- TEMPORARY DIAGNOSTIC hook, version 3. Copy this file to
 --   <Saved Games>\DCS.openbeta_server\Scripts\Hooks\OlympusTransportMissionProbe.lua
--- (replacing version 1) and restart DCS. It writes "TRANSPORT-PROBE" and "PROBE-MISSIONSIDE" lines to dcs.log.
+-- (replacing the previous version) and restart DCS. It only reads and writes "TRANSPORT-PROBE" lines to dcs.log.
 --
--- Version 1 showed that neither the "server" state (where Olympus runs) nor net.dostring_in("mission") can see the
--- simpleTransport global. This version tests another way in: trigger.action.doScript, run from the server state like
--- Olympus can. It checks (1) does code run that way see simpleTransport, and (2) can it hand back a number (user flag)
--- and a text (a temporary map mark, removed again) that the server state can read.
--- A short-lived map mark "OLY|hello world 123" may flash on the F10 map during the test.
+-- Results so far: Olympus's Lua ("server" state) and net.dostring_in("mission") can not see the simpleTransport global,
+-- and trigger.action.doScript does not exist in the server state. This version lists what each state does offer
+-- (global names, trigger functions, file access), so that a way to pass messages between Olympus and the mission script
+-- can be chosen from facts. It changes nothing in the mission.
 
 local probe = { runs = 0, nextTime = nil, active = false }
 
@@ -14,45 +13,43 @@ local function say(text)
 	log.write("TRANSPORT-PROBE", log.INFO, tostring(text))
 end
 
-local function ask(stateName, code)
-	local results = { pcall(net.dostring_in, stateName, code) }
-	local parts = {}
-	for i = 1, #results do
-		parts[i] = tostring(results[i])
+-- Writes long text as several log lines
+local function sayLong(prefix, text)
+	local size = 1500
+	local i, part = 1, 1
+	while i <= #text do
+		say(prefix .. " [" .. part .. "] " .. string.sub(text, i, i + size - 1))
+		i = i + size
+		part = part + 1
 	end
-	say("net.dostring_in(" .. stateName .. ") returned: " .. table.concat(parts, " | "))
 end
 
--- Code that doScript runs inside the mission
-local MISSION_SIDE = [[
-local ok, value = pcall(function() return simpleTransport.getLoadedGroupName('none') end)
-env.info('PROBE-MISSIONSIDE type=' .. type(simpleTransport) .. ' api=' .. tostring(simpleTransport and simpleTransport.apiVersion) .. ' call=' .. tostring(ok) .. ',' .. tostring(value))
-trigger.action.setUserFlag('OLY_PROBE', 7)
-trigger.action.markToAll(98765, 'OLY|hello world 123', {x = 0, y = 0, z = 0}, true)
-]]
-
--- Code that runs in the server state and reports what the mission side left behind
-local SERVER_READ = [[
+local INSPECT = [[
+local function keys(t)
+	local r = {}
+	if type(t) == 'table' then
+		for k in pairs(t) do r[#r + 1] = tostring(k) end
+		table.sort(r)
+	end
+	return table.concat(r, ',')
+end
 local out = {}
-out[#out + 1] = 'flag=' .. tostring(trigger.misc.getUserFlag('OLY_PROBE'))
-local okm, marks = pcall(function() return world.getMarkPanels() end)
-if okm and type(marks) == 'table' then
-	local count = 0
-	for _, m in pairs(marks) do
-		count = count + 1
-		if m.idx == 98765 then out[#out + 1] = 'mark=' .. tostring(m.text) end
-	end
-	out[#out + 1] = 'markCount=' .. count
-else
-	out[#out + 1] = 'getMarkPanels failed: ' .. tostring(marks)
-end
-return table.concat(out, ' ')
+out[#out + 1] = 'simpleTransport=' .. type(simpleTransport) .. ' mist=' .. type(mist) .. ' Olympus=' .. type(Olympus)
+out[#out + 1] = 'io=' .. type(io) .. ' lfs=' .. type(lfs) .. ' os=' .. type(os) .. ' package=' .. type(package) .. ' dofile=' .. type(dofile) .. ' loadfile=' .. type(loadfile) .. ' loadstring=' .. type(loadstring) .. ' require=' .. type(require) .. ' net=' .. type(net)
+out[#out + 1] = 'trigger.action: ' .. keys(trigger and trigger.action)
+out[#out + 1] = 'trigger.misc: ' .. keys(trigger and trigger.misc)
+out[#out + 1] = 'world: ' .. keys(world)
+out[#out + 1] = 'globals: ' .. keys(_G)
+return table.concat(out, '\n')
 ]]
 
-local REMOVE = "trigger.action.removeMark(98765) trigger.action.setUserFlag('OLY_PROBE', 0)"
-
-local function doScriptFromServer(code)
-	ask("server", "trigger.action.doScript(" .. string.format("%q", code) .. ") return 'doScript called'")
+local function inspect(stateName)
+	local results = { pcall(net.dostring_in, stateName, INSPECT) }
+	say("=== state " .. stateName .. ": pcall=" .. tostring(results[1]) .. " flag=" .. tostring(results[3]))
+	local text = tostring(results[2])
+	for line in string.gmatch(text .. "\n", "(.-)\n") do
+		sayLong(stateName, line)
+	end
 end
 
 local callbacks = {}
@@ -60,8 +57,8 @@ local callbacks = {}
 function callbacks.onSimulationStart()
 	probe.runs = 0
 	probe.active = true
-	probe.nextTime = DCS.getRealTime() + 60 -- the mission script needs a while to load
-	say("probe v2: mission started")
+	probe.nextTime = DCS.getRealTime() + 45 -- the mission script needs a while to load
+	say("probe v3: mission started")
 end
 
 function callbacks.onSimulationStop()
@@ -69,28 +66,18 @@ function callbacks.onSimulationStop()
 end
 
 function callbacks.onSimulationFrame()
-	if not probe.active or probe.runs >= 5 then
+	if not probe.active or probe.runs >= 1 then
 		return
 	end
-	local now = DCS.getRealTime()
-	if now < probe.nextTime then
+	if DCS.getRealTime() < probe.nextTime then
 		return
 	end
 	probe.runs = probe.runs + 1
-	probe.nextTime = now + 20
-	say("--- run " .. probe.runs)
-
-	ask("mission", "return tostring(type(simpleTransport))")
-	if probe.runs == 1 then
-		doScriptFromServer(MISSION_SIDE)
-	else
-		ask("server", SERVER_READ)
-	end
-	if probe.runs == 5 then
-		doScriptFromServer(REMOVE)
-		say("--- done")
-	end
+	say("--- inspection")
+	inspect("mission")
+	inspect("server")
+	say("--- done")
 end
 
 DCS.setUserCallbacks(callbacks)
-say("probe v2 file loaded")
+say("probe v3 file loaded")
