@@ -1,11 +1,15 @@
--- TEMPORARY DIAGNOSTIC hook, version 3. Copy this file to
+-- TEMPORARY DIAGNOSTIC hook, version 4. Copy this file to
 --   <Saved Games>\DCS.openbeta_server\Scripts\Hooks\OlympusTransportMissionProbe.lua
--- (replacing the previous version) and restart DCS. It only reads and writes "TRANSPORT-PROBE" lines to dcs.log.
+-- (replacing the previous version) and restart DCS. It writes "TRANSPORT-PROBE" lines to dcs.log; code that runs
+-- inside the mission also writes "PROBE-MISSIONSIDE" lines. It registers one harmless do-nothing event handler.
 --
--- Results so far: Olympus's Lua ("server" state) and net.dostring_in("mission") can not see the simpleTransport global,
--- and trigger.action.doScript does not exist in the server state. This version lists what each state does offer
--- (global names, trigger functions, file access), so that a way to pass messages between Olympus and the mission script
--- can be chosen from facts. It changes nothing in the mission.
+-- What the previous probes showed: the "mission" state of net.dostring_in is the trigger-action state (it has
+-- a_do_script, a_set_flag and so on), not the place where mission scripts keep their variables.
+-- The idea tested here:
+--   1. Run code inside the mission with a_do_script (what a "DO SCRIPT" trigger does), from the hook.
+--   2. That code registers an event handler that carries a small API table.
+--   3. Olympus's Lua (the "server" state) looks through world.eventHandlers, finds the handler, and calls the API.
+-- If step 3 works, Olympus can call functions that live in the mission, and get their return values, with no mailbox.
 
 local probe = { runs = 0, nextTime = nil, active = false }
 
@@ -13,52 +17,58 @@ local function say(text)
 	log.write("TRANSPORT-PROBE", log.INFO, tostring(text))
 end
 
--- Writes long text as several log lines
-local function sayLong(prefix, text)
-	local size = 1500
-	local i, part = 1, 1
-	while i <= #text do
-		say(prefix .. " [" .. part .. "] " .. string.sub(text, i, i + size - 1))
-		i = i + size
-		part = part + 1
+local function ask(stateName, code)
+	local results = { pcall(net.dostring_in, stateName, code) }
+	local parts = {}
+	for i = 1, #results do
+		parts[i] = tostring(results[i])
 	end
+	say("net.dostring_in(" .. stateName .. ") returned: " .. table.concat(parts, " | "))
 end
 
-local INSPECT = [[
-local function keys(t)
-	local r = {}
-	if type(t) == 'table' then
-		for k in pairs(t) do r[#r + 1] = tostring(k) end
-		table.sort(r)
-	end
-	return table.concat(r, ',')
-end
-local out = {}
-out[#out + 1] = 'simpleTransport=' .. type(simpleTransport) .. ' mist=' .. type(mist) .. ' Olympus=' .. type(Olympus)
-out[#out + 1] = 'io=' .. type(io) .. ' lfs=' .. type(lfs) .. ' os=' .. type(os) .. ' package=' .. type(package) .. ' dofile=' .. type(dofile) .. ' loadfile=' .. type(loadfile) .. ' loadstring=' .. type(loadstring) .. ' require=' .. type(require) .. ' net=' .. type(net)
-out[#out + 1] = 'trigger.action: ' .. keys(trigger and trigger.action)
-out[#out + 1] = 'trigger.misc: ' .. keys(trigger and trigger.misc)
-out[#out + 1] = 'world: ' .. keys(world)
-out[#out + 1] = 'globals: ' .. keys(_G)
-return table.concat(out, '\n')
+-- Runs inside the mission scripting environment
+local MISSION_SIDE = [[
+env.info('PROBE-MISSIONSIDE start: simpleTransport is ' .. type(simpleTransport) .. ', api version ' .. tostring(simpleTransport and simpleTransport.apiVersion))
+local api = { hello = function(name) return 'hello ' .. tostring(name) .. ' from the mission, simpleTransport is ' .. type(simpleTransport) end }
+local handler = { onEvent = function(self, event) end, probeApi = api }
+world.addEventHandler(handler)
+env.info('PROBE-MISSIONSIDE handler registered')
 ]]
 
-local function inspect(stateName)
-	local results = { pcall(net.dostring_in, stateName, INSPECT) }
-	say("=== state " .. stateName .. ": pcall=" .. tostring(results[1]) .. " flag=" .. tostring(results[3]))
-	local text = tostring(results[2])
-	for line in string.gmatch(text .. "\n", "(.-)\n") do
-		sayLong(stateName, line)
+-- Runs in the server state (where Olympus's Lua runs)
+local SERVER_SIDE = [[
+local out = {}
+local handlers = world.eventHandlers
+out[#out + 1] = 'world.eventHandlers is a ' .. type(handlers)
+local count, found = 0, nil
+if type(handlers) == 'table' then
+	for key, value in pairs(handlers) do
+		count = count + 1
+		if count <= 3 then out[#out + 1] = 'entry ' .. count .. ': key ' .. type(key) .. ', value ' .. type(value) end
+		local candidates = { key, value }
+		for _, candidate in ipairs(candidates) do
+			if type(candidate) == 'table' and candidate.probeApi ~= nil then found = candidate end
+		end
 	end
 end
+out[#out + 1] = 'handlers counted: ' .. count
+if found then
+	out[#out + 1] = 'FOUND the probe handler'
+	local ok, result = pcall(found.probeApi.hello, 'Olympus')
+	out[#out + 1] = 'call worked: ' .. tostring(ok) .. ', returned: ' .. tostring(result)
+else
+	out[#out + 1] = 'probe handler NOT found'
+end
+return table.concat(out, ' | ')
+]]
 
 local callbacks = {}
 
 function callbacks.onSimulationStart()
 	probe.runs = 0
 	probe.active = true
-	probe.nextTime = DCS.getRealTime() + 45 -- the mission script needs a while to load
-	say("probe v3: mission started")
+	probe.nextTime = DCS.getRealTime() + 60 -- the mission script needs a while to load
+	say("probe v4: mission started")
 end
 
 function callbacks.onSimulationStop()
@@ -66,18 +76,24 @@ function callbacks.onSimulationStop()
 end
 
 function callbacks.onSimulationFrame()
-	if not probe.active or probe.runs >= 1 then
+	if not probe.active or probe.runs >= 3 then
 		return
 	end
 	if DCS.getRealTime() < probe.nextTime then
 		return
 	end
 	probe.runs = probe.runs + 1
-	say("--- inspection")
-	inspect("mission")
-	inspect("server")
-	say("--- done")
+	probe.nextTime = DCS.getRealTime() + 20
+	say("--- run " .. probe.runs)
+	if probe.runs == 1 then
+		ask("mission", "a_do_script(" .. string.format("%q", MISSION_SIDE) .. ")")
+	else
+		ask("server", SERVER_SIDE)
+	end
+	if probe.runs == 3 then
+		say("--- done")
+	end
 end
 
 DCS.setUserCallbacks(callbacks)
-say("probe v3 file loaded")
+say("probe v4 file loaded")
